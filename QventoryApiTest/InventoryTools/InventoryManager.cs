@@ -17,16 +17,16 @@ namespace QventoryApiTest.InventoryTools
         public List<Material> Materials { get; set; }
         public List<Listing> Listings { get; set; }
 
-        public List<ListingGroup> ListingGroups { get; set; }
-        public List<ProductGroup> ProductGroups { get; set; }
+        public List<CraftableGroup<Listing>> ListingGroups { get; set; }
+        public List<CraftableGroup<Product>> ProductGroups { get; set; }
 
         private InventoryManager()
         {
             Materials = new List<Material>();
             Listings = new List<Listing>();
 
-            ListingGroups = new List<ListingGroup>();
-            ProductGroups = new List<ProductGroup>();
+            ListingGroups = new List<CraftableGroup<Listing>>();
+            ProductGroups = new List<CraftableGroup<Product>>();
         }
 
         public static InventoryManager GetInstance()
@@ -55,14 +55,14 @@ namespace QventoryApiTest.InventoryTools
         }
 
 
-        public Material[] GetMaterialsByName(string name)
+        public Material GetMaterial(Predicate<Material> match)
         {
-            return Materials.FindAll(m => m.Name.Equals(name)).ToArray();
-        }
-
-        public Material GetMaterialByID(string id)
-        {
-            return Materials.Find(m => m.ID.Equals(id));
+            Material[] materials = Materials.FindAll(match).ToArray();
+            if (materials.Length == 1)
+                return materials[0];
+            else
+                Console.WriteLine("Error: {0} materials match that identifier", materials.Length);
+            return null;
         }
 
         public void AddMaterial(Material mat)
@@ -87,6 +87,19 @@ namespace QventoryApiTest.InventoryTools
             if (index < 0)
                 return;
             Materials.RemoveAt(index);
+        }
+
+        public Product GetProduct(string listingId, string productId)
+        {
+            Product product = Listings.Find(l => l.ID.Equals(listingId) || l.Name.Equals(listingId)).Products.Where(p=>p.ProductID.Equals(productId)).First();
+            if (product == null)
+                Console.WriteLine("Product with listing identifier {0} and product id {1} does not exist.", listingId, productId);
+            return product;
+        }
+
+        public Listing GetListing(Predicate<Listing> match)
+        {
+            return Listings.Find(match);
         }
 
         public void AddListing(Listing listing)
@@ -139,9 +152,14 @@ namespace QventoryApiTest.InventoryTools
             }
         }
 
-        public void addListingGroup(ListingGroup group)
+        public CraftableGroup<Listing> GetListingGroup(Predicate<CraftableGroup<Listing>> match)
         {
-            ListingGroup duplicate = ListingGroups.Find(li => li.Name.Equals(group.Name));
+            return ListingGroups.Find(match);
+        }
+
+        public void AddListingGroup(CraftableGroup<Listing> group)
+        {
+            CraftableGroup<Listing> duplicate = ListingGroups.Find(li => li.Name.Equals(group.Name));
             if (duplicate != null)
             {
                 Console.WriteLine("ListingGroup not added. Trying to add ListingGroup with duplicate Name. Did you mean to update?");
@@ -151,20 +169,25 @@ namespace QventoryApiTest.InventoryTools
             ListingGroups.Add(group);
         }
 
-        public void removeListingGroup(ListingGroup group)
+        public void RemoveListingGroup(CraftableGroup<Listing> group)
         {
             ListingGroups.Remove(group);
         }
 
-        public void removeListingGroup(string name)
+        public void RemoveListingGroup(string name)
         {
             int index = ListingGroups.FindIndex(li => li.Name.Equals(name));
             ListingGroups.RemoveAt(index);
         }
 
-        public void addProductGroup(ProductGroup group)
+        public CraftableGroup<Product> GetProductGroup(Predicate<CraftableGroup<Product>> match)
         {
-            ProductGroup duplicate = ProductGroups.Find(pg => pg.Name.Equals(group.Name));
+            return ProductGroups.Find(match);
+        }
+
+        public void AddProductGroup(CraftableGroup<Product> group)
+        {
+            CraftableGroup<Product> duplicate = ProductGroups.Find(pg => pg.Name.Equals(group.Name));
             if (duplicate != null)
             {
                 Console.WriteLine("ProductGroup not added. Trying to add ProductGroup with duplicate Name. Did you mean to update?");
@@ -172,6 +195,17 @@ namespace QventoryApiTest.InventoryTools
                 return;
             }
             ProductGroups.Add(group);
+        }
+
+        public void RemoveProductGroup(CraftableGroup<Product> group)
+        {
+            ProductGroups.Remove(group);
+        }
+
+        public void RemoveProductGroup(string name)
+        {
+            int index = ProductGroups.FindIndex(pg => pg.Name.Equals(name));
+            ListingGroups.RemoveAt(index);
         }
     }
 }

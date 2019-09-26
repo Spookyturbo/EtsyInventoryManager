@@ -56,16 +56,17 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CommandLine.cs" />
+    <Compile Include="InventoryTools\CraftableGroup.cs" />
     <Compile Include="InventoryTools\DataSaving.cs" />
     <Compile Include="InventoryTools\Craftable.cs" />
+    <Compile Include="InventoryTools\ILinkable.cs" />
+    <Compile Include="InventoryTools\IListable.cs" />
     <Compile Include="InventoryTools\InventoryManager.cs" />
     <Compile Include="InventoryTools\Listing.cs" />
-    <Compile Include="InventoryTools\ListingGroup.cs" />
     <Compile Include="InventoryTools\Material.cs" />
     <Compile Include="EtsyMethods.cs" />
     <Compile Include="EtsyObjects.cs" />
     <Compile Include="InventoryTools\Product.cs" />
-    <Compile Include="InventoryTools\ProductGroup.cs" />
     <Compile Include="ListableAttribute.cs" />
     <Compile Include="Oauth.cs" />
     <Compile Include="Options.cs" />

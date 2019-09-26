@@ -10,7 +10,7 @@ namespace QventoryApiTest.InventoryTools
 {
     //Wrapper class for the Etsy.Listing object
     [Serializable]
-    class Listing : Craftable
+    class Listing : Craftable, IListable
     {
         [NonSerialized]
         Etsy.Listing data;

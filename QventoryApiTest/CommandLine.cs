@@ -33,11 +33,12 @@ namespace QventoryApiTest
             {
                 string input = Console.ReadLine();
                 string[] args = regex.Matches(input).Cast<Match>().Select(m => (!string.IsNullOrEmpty(m.Groups[1].Value)) ? m.Groups[1].Value : m.Groups[2].Value).ToArray();
-                ParserResult<object> result = parser.ParseArguments<ListOptions, ExitOptions, CreateOptions>(args);
+                ParserResult<object> result = parser.ParseArguments<ListOptions, ExitOptions, CreateOptions, LinkOptions>(args);
                 result.MapResult(
                     (ListOptions opts) => opts.Execute(),
                     (ExitOptions opts) => opts.Execute(),
                     (CreateOptions opts) => opts.Execute(),
+                    (LinkOptions opts) => opts.Execute(),
                     errs => DoError(result, errs)
                     );
             }
@@ -133,7 +134,30 @@ namespace QventoryApiTest
                 Tuple<PropertyInfo, ListableAttribute> propertyAttribute = attributes.Find(t => t.Item2.Name.Equals(key));
                 if (propertyAttribute != null)
                 {
-                    listElements(propertyAttribute);
+                    ListableAttribute attribute = propertyAttribute.Item2;
+                    //Use method supplied in attribute
+                    if(attribute.CallbackClass != null)
+                    {
+                        MethodInfo methodInfo = attribute.CallbackClass.GetMethod(attribute.CallbackMethodName, BindingFlags.Public | BindingFlags.Static);
+                        if (methodInfo != null)
+                        {
+                            //These parameters should work for any method supplied in an attribute, it is just required
+                            //I should probably add a check to make sure, but I don't want to so I just won't mess it up for now
+                            //since I am the only one using this
+                            object[] parameters = {element, propertyAttribute, subIncludes[attribute.Name], indents};
+                            methodInfo = methodInfo.MakeGenericMethod(element.GetType());
+                            methodInfo.Invoke(null, parameters);
+                        }
+                        else
+                        {
+                            Console.WriteLine("Supplied callback method in class {0} name {1} does not exist or is not public and static", attribute.CallbackClass.GetType().ToString(), attribute.CallbackMethodName);
+                        }
+                    }
+                    //Use this default list implementation
+                    else
+                    {
+                        listElements(propertyAttribute);
+                    }
                 }
             }
         }

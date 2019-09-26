@@ -10,7 +10,7 @@ namespace QventoryApiTest.InventoryTools
 {
     //An instance of a material used for creating anything
     [Serializable]
-    class Material
+    class Material : IListable
     {
         [Listable]
         public string ID { get; }
@@ -21,16 +21,6 @@ namespace QventoryApiTest.InventoryTools
         //Amount on hand
         [Listable]
         public int Quantity { get; set; }
-
-        //Associations it has
-        //Will include listings in listingsGroups
-
-        public Listing[] Listings { get; set; }
-        public ListingGroup[] ListingGroups { get; set; }
-
-        //Will include products in productGroups
-        public Product[] Products { get; set; }
-        public ProductGroup[] ProductGroups { get; set; }
 
         public Material(string name) : this(name, Guid.NewGuid().ToString()) { }
         public Material(string name, string id) : this(name, 0, "", id) { }
@@ -45,8 +35,6 @@ namespace QventoryApiTest.InventoryTools
             Quantity = quantity;
             ID = id;
             Descriptor = descriptor;
-
-            InventoryManager.GetInstance().AddMaterial(this);
         }
     }
 }

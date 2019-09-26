@@ -13,6 +13,8 @@ namespace QventoryApiTest
         private string name;
         //Should be printed no matter what
         private bool @default;
+        private Type callbackClassName;
+        private string callbackMethodName;
 
         public ListableAttribute(string name)
         {
@@ -22,9 +24,24 @@ namespace QventoryApiTest
                 this.name = name.ToLower();
         }
 
-        public ListableAttribute() 
+        public ListableAttribute(Type callbackClass, string callbackMethodName) 
             : this(null)
         {
+            callbackClassName = callbackClass;
+            this.callbackMethodName = callbackMethodName;
+        }
+
+        public ListableAttribute(string name, Type callbackClass, string callbackMethodName) 
+            : this(name)
+        {
+            callbackClassName = callbackClass;
+            this.callbackMethodName = callbackMethodName;
+        }
+
+        public ListableAttribute()
+            : this(null)
+        {
+
         }
 
         public string Name
@@ -39,5 +56,14 @@ namespace QventoryApiTest
             set { @default = value; }
         }
 
+        public Type CallbackClass
+        {
+            get { return callbackClassName; }
+        }
+
+        public string CallbackMethodName
+        {
+            get { return callbackMethodName; }
+        }
     }
 }

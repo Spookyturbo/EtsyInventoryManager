@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 namespace QventoryApiTest.InventoryTools
 {
     [Serializable]
-    class Product : Craftable
+    class Product : Craftable, IListable
     {
         [NonSerialized]
         public Etsy.ListingProduct data;
@@ -24,6 +24,7 @@ namespace QventoryApiTest.InventoryTools
             this.data = data;
             ProductID = data.Product_Id;
             ListingID = listingId;
+            Materials = new Dictionary<string, int>();
 
             Properties = new PropertyValue[data.Property_Values.Length];
             for (int i = 0; i < data.Property_Values.Length; i++)
