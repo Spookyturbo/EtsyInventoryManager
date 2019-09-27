@@ -33,11 +33,12 @@ namespace QventoryApiTest
             {
                 string input = Console.ReadLine();
                 string[] args = regex.Matches(input).Cast<Match>().Select(m => (!string.IsNullOrEmpty(m.Groups[1].Value)) ? m.Groups[1].Value : m.Groups[2].Value).ToArray();
-                ParserResult<object> result = parser.ParseArguments<ListOptions, ExitOptions, CreateOptions, LinkOptions>(args);
+                ParserResult<object> result = parser.ParseArguments<ListOptions, ExitOptions, CreateOptions, DeleteOptions, LinkOptions>(args);
                 result.MapResult(
                     (ListOptions opts) => opts.Execute(),
                     (ExitOptions opts) => opts.Execute(),
                     (CreateOptions opts) => opts.Execute(),
+                    (DeleteOptions opts) => opts.Execute(),
                     (LinkOptions opts) => opts.Execute(),
                     errs => DoError(result, errs)
                     );
@@ -48,7 +49,7 @@ namespace QventoryApiTest
         //Add dictionary material support and then we guchi and never need to touch this again, just add attributes!
         public static void List<T>(T element, bool verbose, string[] includes, int length = int.MaxValue, int indents = 0)
         {
-            //Parse the includes formatting strings
+            //Parse the includes formatting strings. Key = Current Primary element. Tuple<lenofpelementifenumerable, subincludes>
             Dictionary<string, string[]> subIncludes = new Dictionary<string, string[]>();
             if (includes != null)
             {
@@ -56,13 +57,16 @@ namespace QventoryApiTest
                 Regex reg = new Regex(@"\[(.*)\]");
 
                 //Splits into outermost comma seperated values
-                Regex reg2 = new Regex(@"\w+(\[+.*?\]+)*");
+                Regex reg2 = new Regex(@"[\w:]+(\[+.*?\]+)*");
                 foreach (string include in includes)
                 {
                     Match match = reg.Match(include);
                     if (match != null)
                     {
                         string primaryKey = include.Remove(match.Index, match.Length);
+                        string[] primaryInfo = primaryKey.Split(':');
+                        primaryKey = primaryInfo[0];
+                        length = (primaryInfo.Length > 1) ? Int32.Parse(primaryInfo[1]) : length;
                         string newIncludes = match.Groups[1].Value;
                         
                         //splitting based on comma doesn't work, split based off other regex expression
@@ -84,16 +88,25 @@ namespace QventoryApiTest
                 bool isEnumerable = typeof(System.Collections.IEnumerable).IsAssignableFrom(property.PropertyType) && property.PropertyType != typeof(string);
                 if (isEnumerable)
                 {
-                    Type type = property.PropertyType;
-                    if (type.HasElementType)
+                    //Print header
+                    string title = string.Format("{0}:", attribute.Name);
+                    Console.WriteLine(title.PadLeft(title.Length + indents));
+                    //Manage when stop listing
+                    int i = 0;
+                    System.Collections.IEnumerator enumerator = ((System.Collections.IEnumerable) (property.GetValue(element))).GetEnumerator();
+                    bool hasNext = enumerator.MoveNext();
+                    while(hasNext)
                     {
-                        int i = 0;
-                        foreach (object o in (System.Collections.IEnumerable)property.GetValue(element))
+                        List(enumerator.Current, verbose, subIncludes[attribute.Name], indents: indents + 4);
+                        //If there is another item to print, put a spacer line in between them
+                        if(hasNext && i != length-1)
                         {
-                            List(o, verbose, subIncludes[attribute.Name], indents: indents + 4);
-                            i++;
-                            if (i >= length) break;
+                            Console.WriteLine();
                         }
+                        //Check if list is over
+                        i++;
+                        if (i >= length) break;
+                        hasNext = enumerator.MoveNext();
                     }
                 }
                 else
@@ -118,7 +131,7 @@ namespace QventoryApiTest
                 attribute.Name = attribute.Name ?? property.Name.ToLower();
                 attributes.Add(new Tuple<PropertyInfo, ListableAttribute>(property, attribute));
             }
-
+            
             //Do defaults then take out of list
             Tuple<PropertyInfo, ListableAttribute>[] defaults = attributes.FindAll(t => t.Item2.Default).ToArray();
             foreach(var def in defaults)

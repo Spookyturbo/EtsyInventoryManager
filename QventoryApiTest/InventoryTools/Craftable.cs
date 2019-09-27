@@ -31,12 +31,27 @@ namespace QventoryApiTest.InventoryTools
             }
         }
 
+        public void RemoveMaterial(string id)
+        {
+            Materials.Remove(id);
+        }
+
+
         //For linking to materials
         public virtual void Link<T>(T element)
         {
             if(element is Material m)
             {
                 AddMaterialRequirement(m, 0);
+                return;
+            }
+        }
+
+        public virtual void Delink<T>(T element)
+        {
+            if(element is Material m)
+            {
+                RemoveMaterial(m.ID);
                 return;
             }
         }

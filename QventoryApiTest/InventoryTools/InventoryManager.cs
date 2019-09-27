@@ -14,10 +14,14 @@ namespace QventoryApiTest.InventoryTools
         static string savePath = @"inventoryManager.txt";
         static InventoryManager instance = null;
 
+        [Listable]
         public List<Material> Materials { get; set; }
+        [Listable]
         public List<Listing> Listings { get; set; }
 
+        [Listable]
         public List<CraftableGroup<Listing>> ListingGroups { get; set; }
+        [Listable]
         public List<CraftableGroup<Product>> ProductGroups { get; set; }
 
         private InventoryManager()
@@ -85,7 +89,10 @@ namespace QventoryApiTest.InventoryTools
         {
             int index = Materials.FindIndex(m => m.ID.Equals(matID));
             if (index < 0)
+            {
+                Console.WriteLine("A material with that name does not exist.");
                 return;
+            }
             Materials.RemoveAt(index);
         }
 

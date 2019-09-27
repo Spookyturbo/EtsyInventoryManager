@@ -9,5 +9,6 @@ namespace QventoryApiTest.InventoryTools
     interface ILinkable
     {
         void Link<T>(T element);
+        void Delink<T>(T element);
     }
 }

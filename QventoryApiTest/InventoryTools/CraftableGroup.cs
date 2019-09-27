@@ -31,6 +31,15 @@ namespace QventoryApiTest.InventoryTools
             }
         }
 
+        public override void Delink<U>(U element)
+        {
+            base.Delink(element);
+            if(element is T e)
+            {
+                RemoveItem(e);
+            }
+        }
+
         public override void AddMaterialRequirementByID(string matId, int requiredAmount)
         {
             base.AddMaterialRequirementByID(matId, requiredAmount);
