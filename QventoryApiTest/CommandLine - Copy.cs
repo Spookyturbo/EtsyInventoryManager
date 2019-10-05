@@ -47,17 +47,26 @@ namespace QventoryApiTest
 
         //Indent = how many spaces before text
         //Add dictionary material support and then we guchi and never need to touch this again, just add attributes!
-        public static void List<T>(T element, bool verbose, string[] includes, int length = int.MaxValue, int indents = 0)
+        public static void List<T>(T element, bool verbose, string includes, int length = int.MaxValue, int indents = 0)
         {
             //Parse the includes formatting strings. Key = Current Primary element. Tuple<lenofpelementifenumerable, subincludes>
-            Dictionary<string, Tuple<string[], int>> subIncludes = new Dictionary<string, Tuple<string[], int>>();
+            Dictionary<string, string[]> subIncludes = new Dictionary<string, string[]>();
             if (includes != null)
             {
                 //Finds square bracket sections and seperate them from the primary key
                 Regex reg = new Regex(@"\[(.*)\]");
 
-                //Parse include strings
-                foreach (string include in includes)
+                //Splits into outermost comma seperated values, and lists those seperately
+                //List doesn't list groups of things, so this seperates them into single items to list those
+                Regex reg2 = new Regex(@"[\w:]+(\[+.*?\]+)*");
+                string[] allIncludes = (string.IsNullOrEmpty(includes)) ? null : reg.Matches(includes.ToLower()).Cast<Match>().Select(m => m.Value).ToArray();
+                if(allIncludes.Length > 1)
+                {
+                    foreach (string include in allIncludes)
+                        List(element, verbose, include, indents: indents);
+                }
+
+                foreach (string include in allIncludes)
                 {
                     Match match = reg.Match(include);
                     if (match != null)
@@ -65,13 +74,12 @@ namespace QventoryApiTest
                         string primaryKey = include.Remove(match.Index, match.Length);
                         string[] primaryInfo = primaryKey.Split(':');
                         primaryKey = primaryInfo[0];
-                        int sublength = (primaryInfo.Length > 1) ? Int32.Parse(primaryInfo[1]) : length;
+                        length = (primaryInfo.Length > 1) ? Int32.Parse(primaryInfo[1]) : length;
                         string newIncludes = match.Groups[1].Value;
-
+                        
                         //splitting based on comma doesn't work, split based off other regex expression
-                        string[] sub = (string.IsNullOrEmpty(newIncludes)) ? null : ParseSearchString(newIncludes);
-                        Tuple<string[], int> keyInfo = new Tuple<string[], int>(sub, sublength);
-                        subIncludes.Add(primaryKey, keyInfo);
+                        string[] sub = (string.IsNullOrEmpty(newIncludes)) ? null : reg2.Matches(newIncludes).Cast<Match>().Select(m => m.Value).ToArray();
+                        subIncludes.Add(primaryKey, sub);
                     }
                     else
                     {
@@ -88,20 +96,18 @@ namespace QventoryApiTest
                 bool isEnumerable = typeof(System.Collections.IEnumerable).IsAssignableFrom(property.PropertyType) && property.PropertyType != typeof(string);
                 if (isEnumerable)
                 {
-                    //Set length for this
-                    length = subIncludes[attribute.Name].Item2;
                     //Print header
                     string title = string.Format("{0}:", attribute.Name);
                     Console.WriteLine(title.PadLeft(title.Length + indents));
                     //Manage when stop listing
                     int i = 0;
-                    System.Collections.IEnumerator enumerator = ((System.Collections.IEnumerable)(property.GetValue(element))).GetEnumerator();
+                    System.Collections.IEnumerator enumerator = ((System.Collections.IEnumerable) (property.GetValue(element))).GetEnumerator();
                     bool hasNext = enumerator.MoveNext();
-                    while (hasNext)
+                    while(hasNext)
                     {
-                        List(enumerator.Current, verbose, subIncludes[attribute.Name].Item1, indents: indents + 4);
+                        List(enumerator.Current, verbose, subIncludes[attribute.Name], indents: indents + 4);
                         //If there is another item to print, put a spacer line in between them
-                        if (hasNext && i != length - 1)
+                        if(hasNext && i != length-1)
                         {
                             Console.WriteLine();
                         }
@@ -120,11 +126,11 @@ namespace QventoryApiTest
                 }
             };
 
-
+            
             //Get properties that are listable
             MemberInfo[] properties = element.GetType().GetProperties();
             properties = properties.Where(p => p.CustomAttributes.Any(a => a.AttributeType == typeof(ListableAttribute))).ToArray();
-
+            
             //Create list of attributes for those properties
             List<Tuple<PropertyInfo, ListableAttribute>> attributes = new List<Tuple<PropertyInfo, ListableAttribute>>();
             foreach (PropertyInfo property in properties)
@@ -133,10 +139,10 @@ namespace QventoryApiTest
                 attribute.Name = attribute.Name ?? property.Name.ToLower();
                 attributes.Add(new Tuple<PropertyInfo, ListableAttribute>(property, attribute));
             }
-
+            
             //Do default properties then take out of list so as to not be repeated
             Tuple<PropertyInfo, ListableAttribute>[] defaults = attributes.FindAll(t => t.Item2.Default).ToArray();
-            foreach (var def in defaults)
+            foreach(var def in defaults)
             {
                 listElements(def);
                 attributes.Remove(def);
@@ -151,7 +157,7 @@ namespace QventoryApiTest
                 {
                     ListableAttribute attribute = propertyAttribute.Item2;
                     //Use method supplied in attribute
-                    if (attribute.CallbackClass != null)
+                    if(attribute.CallbackClass != null)
                     {
                         MethodInfo methodInfo = attribute.CallbackClass.GetMethod(attribute.CallbackMethodName, BindingFlags.Public | BindingFlags.Static);
                         if (methodInfo != null)
@@ -159,7 +165,7 @@ namespace QventoryApiTest
                             //These parameters should work for any method supplied in an attribute, it is just required
                             //I should probably add a check to make sure, but I don't want to so I just won't mess it up for now
                             //since I am the only one using this
-                            object[] parameters = { element, propertyAttribute, subIncludes[attribute.Name], indents };
+                            object[] parameters = {element, propertyAttribute, subIncludes[attribute.Name], indents};
                             methodInfo = methodInfo.MakeGenericMethod(element.GetType());
                             methodInfo.Invoke(null, parameters);
                         }
@@ -175,32 +181,6 @@ namespace QventoryApiTest
                     }
                 }
             }
-        }
-
-        //Regex was weird and not doing what I wanted, this was quicker to make, and my understanding
-        //Is regex is not good for nested organization
-        public static string[] ParseSearchString(string searchString)
-        {
-            List<string> test = new List<string>();
-            int nestLevel = 0;
-            int lastStart = 0;
-            for (int i = 0; i < searchString.Length; i++)
-            {
-                char c = searchString[i];
-                if (c.Equals('['))
-                    nestLevel++;
-                else if (c.Equals(']'))
-                    nestLevel--;
-                if (c.Equals(',') && nestLevel == 0)
-                {
-                    test.Add(searchString.Substring(lastStart, i - lastStart).ToLower());
-                    lastStart = i + 1;
-                }
-            }
-            if (lastStart < searchString.Length)
-                test.Add(searchString.Substring(lastStart, searchString.Length - lastStart).ToLower());
-
-            return test.ToArray();
         }
 
         private int DoError(ParserResult<object> result, IEnumerable<Error> errs)
