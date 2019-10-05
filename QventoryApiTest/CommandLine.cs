@@ -25,7 +25,7 @@ namespace QventoryApiTest
 
         public void Run()
         {
-            Regex regex = new Regex(@"([-,\[\]:\w]+)|""(.*?)""");
+            Regex regex = new Regex(@"([-,=><\[\]:\w]+)|""(.*?)""");
             Parser parser = new Parser(config => { config.HelpWriter = null; config.CaseInsensitiveEnumValues = true; });
             Console.WriteLine("Welcome to QVentory.");
             Console.WriteLine("To exit the application, please type 'exit'");
@@ -45,38 +45,42 @@ namespace QventoryApiTest
             }
         }
 
+        //This function is pretty recursive
         //Indent = how many spaces before text
         //Add dictionary material support and then we guchi and never need to touch this again, just add attributes!
-        public static void List<T>(T element, bool verbose, string[] includes, int length = int.MaxValue, int indents = 0)
+        //Example includes: listings[id],listinggroups
+        public static bool List<T>(T element, bool verbose, string[] includes, string[] filterStrings = null, int length = int.MaxValue, int indents = 0)
         {
             //Parse the includes formatting strings. Key = Current Primary element. Tuple<lenofpelementifenumerable, subincludes>
-            Dictionary<string, Tuple<string[], int>> subIncludes = new Dictionary<string, Tuple<string[], int>>();
+            //Format: (currentElementName, (subIncludes, lenToList, filterString)
+            Dictionary<string, Tuple<string[], int, string[]>> subIncludes = new Dictionary<string, Tuple<string[], int, string[]>>();
             if (includes != null)
             {
                 //Finds square bracket sections and seperate them from the primary key
                 Regex reg = new Regex(@"\[(.*)\]");
 
                 //Parse include strings
-                foreach (string include in includes)
+                for(int i = 0; i < includes.Length; i++)
                 {
-                    Match match = reg.Match(include);
-                    if (match != null)
-                    {
-                        string primaryKey = include.Remove(match.Index, match.Length);
-                        string[] primaryInfo = primaryKey.Split(':');
-                        primaryKey = primaryInfo[0];
-                        int sublength = (primaryInfo.Length > 1) ? Int32.Parse(primaryInfo[1]) : length;
-                        string newIncludes = match.Groups[1].Value;
+                    Match match = reg.Match(includes[i]);
+                    string primaryKey = includes[i].Remove(match.Index, match.Length);
 
-                        //splitting based on comma doesn't work, split based off other regex expression
-                        string[] sub = (string.IsNullOrEmpty(newIncludes)) ? null : ParseSearchString(newIncludes);
-                        Tuple<string[], int> keyInfo = new Tuple<string[], int>(sub, sublength);
-                        subIncludes.Add(primaryKey, keyInfo);
-                    }
-                    else
+                    string[] primaryInfo = primaryKey.Split(':');
+                    primaryKey = primaryInfo[0];
+
+                    int sublength = (primaryInfo.Length > 1) ? Int32.Parse(primaryInfo[1]) : length;
+                    string newIncludes = match.Groups[1].Value;
+                    string filter = null;
+                    if(filterStrings != null)
                     {
-                        subIncludes.Add(include, null);
+                        filter = filterStrings[i];
                     }
+
+                    //splitting based on comma doesn't work, split based off other regex expression
+                    
+                    string[] sub = (string.IsNullOrEmpty(newIncludes)) ? null : ParseSearchString(newIncludes);
+                    Tuple<string[], int, string[]> keyInfo = new Tuple<string[], int, string[]>(sub, sublength, ParseSearchString(filter));
+                    subIncludes.Add(primaryKey, keyInfo);
                 }
             }
 
@@ -99,15 +103,18 @@ namespace QventoryApiTest
                     bool hasNext = enumerator.MoveNext();
                     while (hasNext)
                     {
-                        List(enumerator.Current, verbose, subIncludes[attribute.Name].Item1, indents: indents + 4);
-                        //If there is another item to print, put a spacer line in between them
-                        if (hasNext && i != length - 1)
+                        if (Filter(enumerator.Current, subIncludes[attribute.Name].Item1))
                         {
-                            Console.WriteLine();
+                            List(enumerator.Current, verbose, subIncludes[attribute.Name].Item1, indents: indents + 4);
+                            //If there is another item to print, put a spacer line in between them
+                            if (hasNext && i != length - 1)
+                            {
+                                Console.WriteLine();
+                            }
+                            //Check if list is over
+                            i++;
+                            if (i >= length) break;
                         }
-                        //Check if list is over
-                        i++;
-                        if (i >= length) break;
                         hasNext = enumerator.MoveNext();
                     }
                 }
@@ -175,6 +182,121 @@ namespace QventoryApiTest
                     }
                 }
             }
+
+            return false;
+        }
+
+        //Example filter string listings[id=x] where type T is ListingGroup
+        //id=x for type t = listings
+        //More complicated filter string would be listings[products[productid=x]]
+        //Even more complicated filter listings[id=x,products[productid=x]]
+        //Element is an instance of T
+        //Returns true only if the given element is true for every check. If a check is against an element contained in an 
+        //enumerable in T, returns true if atleast one is true
+        public static bool Filter<T>(T element, string[] filterElements)
+        {
+            //Name of property to be compared as key, with a tuple of the comparison type and what it is being compared to or if unknown the sub filter
+            Dictionary<string, Tuple<char, string>> comparisons = new Dictionary<string, Tuple<char, string>>();
+            char[] validComparisons = { '=', '>', '<' };
+
+            if (filterElements == null)
+                return true;
+            filterElements = filterElements.Where(s => s.IndexOfAny(validComparisons) > 0).ToArray();
+            if(filterElements.Length == 0)
+                return true;
+
+            Regex reg = new Regex(@"\[(.*)\]");
+
+            //Pull out valid comparisons from the filterElements parsed
+            foreach (string filterElement in filterElements)
+            {
+                //products[id=x]
+                Match match = reg.Match(filterElement);
+                if(match.Success)
+                {
+                    string primaryKey = filterElement.Remove(match.Index, match.Length);
+                    string subFilter = match.Groups[1].Value;
+                    Tuple<char, string> mockComparison = new Tuple<char, string>(' ', subFilter);
+                    comparisons.Add(primaryKey, mockComparison);
+                }
+                else
+                {
+                    //Safe to do a comparison on this item, does not require going deeper
+                    int index = filterElement.IndexOfAny(validComparisons);
+                    char comparator = filterElement[index];
+                    string[] comparisonInfo = filterElement.Split(comparator);
+                    //Will still compare if the comparison is malformated, just it will default to true
+                    if (comparisonInfo.Length > 1)
+                    {
+                        Tuple<char, string> comparison = new Tuple<char, string>(comparator, comparisonInfo[1]);
+                        comparisons.Add(comparisonInfo[0], comparison);
+                    }
+                    else
+                    {
+                        Console.WriteLine("WARNING: Malformated Comparison");
+                    }
+                }
+            }
+
+            //Get properties for all elements in our desired comparisons
+            PropertyInfo[] properties = element.GetType().GetProperties();
+            properties = properties.Where(p => comparisons.Keys.Contains(p.Name.ToLower())).ToArray();
+
+            //Check each property to see if it succeeds in its comparison
+            foreach (PropertyInfo property in properties)
+            {
+
+                bool isEnumerable = typeof(System.Collections.IEnumerable).IsAssignableFrom(property.PropertyType) && property.PropertyType != typeof(string);
+                //Realistically there should be an if class object in here since those can't be filtered, however currently all of those
+                //are stored as ienumerable and I have no intent for them not to be stored that way, so for now this is fine
+                if (isEnumerable)
+                {
+                    //Get enumerator for this property
+                    System.Collections.IEnumerator enumerator = ((System.Collections.IEnumerable)(property.GetValue(element))).GetEnumerator();
+                    bool anyTrue = false;
+                    while (enumerator.MoveNext())
+                    {
+                        //If any element in enumerable returns true, count as true in filter
+                        if (Filter(enumerator.Current, ParseSearchString(comparisons[property.Name.ToLower()].Item2)))
+                        {
+                            anyTrue = true;
+                            break;
+                        }
+                    }
+                    if (!anyTrue)
+                        return false;
+                }
+                else
+                {
+                    //Can do a direct comparison to the property
+                    string comparison = comparisons[property.Name.ToLower()].Item2;
+                    object propVal = property.GetValue(element);
+                    int comp;
+                    switch(comparisons[property.Name.ToLower()].Item1)
+                    {
+                        case '=':
+                            if (!propVal.Equals(comparison))
+                                return false;
+                            break;
+                        case '>':
+                            comp = Int32.Parse(comparison);
+                            if (!((int) propVal > comp))
+                                return false;
+                            break;
+                        case '<':
+                            comp = Int32.Parse(comparison);
+                            if (!((int)propVal < comp))
+                                return false;
+                            break;
+                        default:
+                            Console.WriteLine("This is literally impossible, I validate these so this is literally impossible");
+                            break;
+                    }
+                }
+            }
+
+            //It never failed a check hurray it is valid!
+            return true;
         }
 
         //Regex was weird and not doing what I wanted, this was quicker to make, and my understanding
@@ -201,6 +323,33 @@ namespace QventoryApiTest
                 test.Add(searchString.Substring(lastStart, searchString.Length - lastStart).ToLower());
 
             return test.ToArray();
+        }
+
+        //Returns a dictionary that turns x[y...] into { x : [y, ..., ...] }
+        public static Dictionary<string, string[]> ParseSearchStringToDictionary(string searchString)
+        {
+            Dictionary<string, string[]> searchDictionary = new Dictionary<string, string[]>();
+            string[] commaSeperated = ParseSearchString(searchString);
+            Regex reg = new Regex(@"\[(.*)\]");
+
+            foreach (string search in commaSeperated)
+            {
+
+                Match match = reg.Match(search);
+                if(match.Success)
+                {
+                    string primaryKey = search.Remove(match.Index, match.Length);
+                    string newIncludes = match.Groups[1].Value;
+
+                    searchDictionary.Add(primaryKey, ParseSearchString(newIncludes));
+                }
+                else
+                {
+                    searchDictionary.Add(search, null);
+                }
+            }
+
+            return searchDictionary;
         }
 
         private int DoError(ParserResult<object> result, IEnumerable<Error> errs)

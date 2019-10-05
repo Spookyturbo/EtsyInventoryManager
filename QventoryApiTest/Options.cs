@@ -45,7 +45,7 @@ namespace QventoryApiTest
         {
             string[] includes = Cmd.ParseSearchString(listString);
 
-            Cmd.List(InventoryManager.GetInstance(), Verbose, includes, length: Length ?? int.MaxValue);
+            Cmd.List(InventoryManager.GetInstance(), Verbose, listString, length: Length ?? int.MaxValue);
 
             return 0;
         }

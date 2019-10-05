@@ -14,7 +14,7 @@ namespace QventoryApiTest.InventoryTools
     {
         [NonSerialized]
         Etsy.Listing data;
-        [Listable("name", Default = true)]
+        [Listable(Default = true)]
         public string Name { get; set; }
         [Listable]
         public string ID { get; set; }
