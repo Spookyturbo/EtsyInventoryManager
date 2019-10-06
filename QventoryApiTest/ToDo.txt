@@ -1,3 +1,2 @@
 ﻿Remove Material in InventoryManager needs to remove material requirements from all listings and stuff
 Need an edit command for editing materials and groups
-Need a filtering method to smartly apply materials to products based on propertyvalues

@@ -56,30 +56,23 @@ namespace QventoryApiTest
             Dictionary<string, Tuple<string[], int, string[]>> subIncludes = new Dictionary<string, Tuple<string[], int, string[]>>();
             if (includes != null)
             {
-                //Finds square bracket sections and seperate them from the primary key
-                Regex reg = new Regex(@"\[(.*)\]");
-
-                //Parse include strings
-                for(int i = 0; i < includes.Length; i++)
+                Dictionary<string, string[]> subIncludesTmp = ParseSearchStringToDictionary(includes);
+                //TODO Need to manage when filter string is null
+                Dictionary<string, string[]> filterStringsTmp = ParseSearchStringToDictionary(filterStrings);
+                //Reformat includesDict to include specified length
+                foreach(string key in subIncludesTmp.Keys)
                 {
-                    Match match = reg.Match(includes[i]);
-                    string primaryKey = includes[i].Remove(match.Index, match.Length);
-
-                    string[] primaryInfo = primaryKey.Split(':');
-                    primaryKey = primaryInfo[0];
-
+                    string[] primaryInfo = key.Split(':');
+                    string primaryKey = primaryInfo[0];
                     int sublength = (primaryInfo.Length > 1) ? Int32.Parse(primaryInfo[1]) : length;
-                    string newIncludes = match.Groups[1].Value;
-                    string filter = null;
-                    if(filterStrings != null)
-                    {
-                        filter = filterStrings[i];
-                    }
 
-                    //splitting based on comma doesn't work, split based off other regex expression
-                    
-                    string[] sub = (string.IsNullOrEmpty(newIncludes)) ? null : ParseSearchString(newIncludes);
-                    Tuple<string[], int, string[]> keyInfo = new Tuple<string[], int, string[]>(sub, sublength, ParseSearchString(filter));
+                    string[] filterString;
+                    //Since etsy objects will NEVER have a comparison done on them directly, we dont have to worry about reformatting any primary keys
+                    //that may have a comparison sign in them
+                    if (!filterStringsTmp.TryGetValue(primaryKey, out filterString))
+                        filterString = null;
+
+                    Tuple<string[], int, string[]> keyInfo = new Tuple<string[], int, string[]>(subIncludesTmp[key], sublength, filterString);
                     subIncludes.Add(primaryKey, keyInfo);
                 }
             }
@@ -103,9 +96,9 @@ namespace QventoryApiTest
                     bool hasNext = enumerator.MoveNext();
                     while (hasNext)
                     {
-                        if (Filter(enumerator.Current, subIncludes[attribute.Name].Item1))
+                        if (Filter(enumerator.Current, subIncludes[attribute.Name].Item3))
                         {
-                            List(enumerator.Current, verbose, subIncludes[attribute.Name].Item1, indents: indents + 4);
+                            List(enumerator.Current, verbose, subIncludes[attribute.Name].Item1, filterStrings: subIncludes[attribute.Name].Item3, indents: indents + 4);
                             //If there is another item to print, put a spacer line in between them
                             if (hasNext && i != length - 1)
                             {
@@ -197,7 +190,7 @@ namespace QventoryApiTest
         {
             //Name of property to be compared as key, with a tuple of the comparison type and what it is being compared to or if unknown the sub filter
             Dictionary<string, Tuple<char, string>> comparisons = new Dictionary<string, Tuple<char, string>>();
-            char[] validComparisons = { '=', '>', '<' };
+            char[] validComparisons = { '=', '>', '<', '~'};
 
             if (filterElements == null)
                 return true;
@@ -224,6 +217,7 @@ namespace QventoryApiTest
                     //Safe to do a comparison on this item, does not require going deeper
                     int index = filterElement.IndexOfAny(validComparisons);
                     char comparator = filterElement[index];
+                    
                     string[] comparisonInfo = filterElement.Split(comparator);
                     //Will still compare if the comparison is malformated, just it will default to true
                     if (comparisonInfo.Length > 1)
@@ -241,7 +235,6 @@ namespace QventoryApiTest
             //Get properties for all elements in our desired comparisons
             PropertyInfo[] properties = element.GetType().GetProperties();
             properties = properties.Where(p => comparisons.Keys.Contains(p.Name.ToLower())).ToArray();
-
             //Check each property to see if it succeeds in its comparison
             foreach (PropertyInfo property in properties)
             {
@@ -272,10 +265,15 @@ namespace QventoryApiTest
                     string comparison = comparisons[property.Name.ToLower()].Item2;
                     object propVal = property.GetValue(element);
                     int comp;
+                    
                     switch(comparisons[property.Name.ToLower()].Item1)
                     {
                         case '=':
-                            if (!propVal.Equals(comparison))
+                            if (!((string)propVal).ToLower().Equals(comparison))
+                                return false;
+                            break;
+                        case '~':
+                            if (!((string)propVal).ToLower().Contains(comparison))
                                 return false;
                             break;
                         case '>':
@@ -326,13 +324,14 @@ namespace QventoryApiTest
         }
 
         //Returns a dictionary that turns x[y...] into { x : [y, ..., ...] }
-        public static Dictionary<string, string[]> ParseSearchStringToDictionary(string searchString)
+        public static Dictionary<string, string[]> ParseSearchStringToDictionary(string[] searchString)
         {
             Dictionary<string, string[]> searchDictionary = new Dictionary<string, string[]>();
-            string[] commaSeperated = ParseSearchString(searchString);
+            if (searchString == null)
+                return searchDictionary;
             Regex reg = new Regex(@"\[(.*)\]");
 
-            foreach (string search in commaSeperated)
+            foreach (string search in searchString)
             {
 
                 Match match = reg.Match(search);

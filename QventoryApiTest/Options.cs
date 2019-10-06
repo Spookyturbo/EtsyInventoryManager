@@ -26,8 +26,8 @@ namespace QventoryApiTest
         [Option('v', "verbose", Default = false, HelpText = "Print all details of listing.")]
         public bool Verbose { get; set; }
 
-        [Option('a', "all", Default = false, HelpText = "If true, will list all info in includes if one thing in filter is true.")]
-        public bool FilterAll { get; set; }
+        [Option('f', "filter", HelpText = "Filter string to use against the current list.")]
+        public string Filter { get; set; }
 
         [Option('i', "include", HelpText = "What properties of element to include in listing, comma seperated")]
         public string Include { get; set; }
@@ -44,8 +44,9 @@ namespace QventoryApiTest
         public int Execute()
         {
             string[] includes = Cmd.ParseSearchString(listString);
+            string[] filters = (string.IsNullOrEmpty(Filter)) ? null : Cmd.ParseSearchString(Filter);
 
-            Cmd.List(InventoryManager.GetInstance(), Verbose, listString, length: Length ?? int.MaxValue);
+            Cmd.List(InventoryManager.GetInstance(), Verbose, includes, filters, length: Length ?? int.MaxValue);
 
             return 0;
         }

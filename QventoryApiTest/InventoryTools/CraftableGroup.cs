@@ -13,6 +13,7 @@ namespace QventoryApiTest.InventoryTools
         public string Name { get; set; }
         [Listable]
         public List<T> Items { get; set; }
+        public int Size { get { return Items.Count; } }
 
         public CraftableGroup(string name)
         {
